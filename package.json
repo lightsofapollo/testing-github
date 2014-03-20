@@ -1,0 +1,34 @@
+{
+  "name": "testing-github",
+  "version": "0.0.0",
+  "description": "Testing utilities for making actual requests to github",
+  "main": "pull_request.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lightsofapollo/testing-github.git"
+  },
+  "keywords": [
+    "testing",
+    "github"
+  ],
+  "author": "James Lal [:lightsofapollo]",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/lightsofapollo/testing-github/issues"
+  },
+  "homepage": "https://github.com/lightsofapollo/testing-github",
+  "devDependencies": {
+    "mocha": "~1.18.2"
+  },
+  "dependencies": {
+    "uuid": "~1.4.1",
+    "github-api": "git://github.com/michael/github.git#7b45b4d6936c3dfb271bb0ea09924554c74e9de8",
+    "promise": "~4.0.0"
+  }
+}
