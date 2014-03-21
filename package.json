@@ -29,6 +29,7 @@
   "dependencies": {
     "uuid": "~1.4.1",
     "github-api": "git://github.com/michael/github.git#7b45b4d6936c3dfb271bb0ea09924554c74e9de8",
-    "promise": "~4.0.0"
+    "promise": "~4.0.0",
+    "proxied-promise-object": "~0.1.0"
   }
 }

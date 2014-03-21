@@ -1,5 +1,6 @@
 var Promise = require('promise');
 var Github = require('github-api');
+var PromiseProxy = require('proxied-promise-object');
 
 var uuid = require('uuid');
 var debug = require('debug')('shepherd-event-sever:test:pull_request');
@@ -12,31 +13,78 @@ function PullRequest() {}
 
 PullRequest.prototype = {
   /**
-  branch where pull request comes from.
-  @type String
+  Response of the initial pull request.
   */
-  branch: null,
+  data: null,
+
+  /**
+  Repo representation.
+  Repository object representing the `head`
+  @see: https://github.com/michael/github#repository-api
+  @type GithubAPI.Repo
+  */
+  head: null,
+
+  headRepository: null,
+  headUser: null,
+  headBranch: null,
 
   /**
   Repo representation.
   See: https://github.com/michael/github#repository-api
   @type GithubAPI.Repo
   */
-  repo: null,
+  base: null,
 
-  sourceRepoBranches: function() {
-    var list = Promise.denodeify(this.repo.listBranches.bind(this.repo));
-    return list();
-  },
+  baseRepoistory: null,
+  baseUser: null,
+  baseBranch: null,
 
   /**
   Delete branch on github.
   */
   destroy: function(callback) {
-    var deleteRef = Promise.denodeify(this.repo.deleteRef.bind(this.repo));
-    return deleteRef('heads/' + this.branch);
+    return this.head.deleteRef('heads/' + this.headBranch);
   }
 };
+
+/**
+Issue the fork and wait for the contents of the repo to be open
+@param {Object} options for the fork.
+@param {Object} repo repository object from the github api.
+@return {Promise} promise for the forking to be completed.
+*/
+
+function forkAndWait(gh, repo) {
+
+  function waitForShow(targetRepo) {
+    var timeout = new Date();
+    timeout.setSeconds(timeout.getSeconds() + 180);
+    timeout = timeout.valueOf();
+
+    return new Promise(function(accept, reject) {
+      function shown() {
+        if (Date.now() > timeout) {
+          return reject(
+            new Error('timeout while waiting for repoistory to be available')
+          );
+        }
+
+        targetRepo.show().then(accept, function() {
+          setTimeout(shown, 100);
+        });
+      }
+      shown();
+    });
+  }
+
+  return repo.fork().then(function(forked) {
+    var forkRepo = PromiseProxy(Promise, gh.getRepo(forked.owner.login, forked.name));
+    return waitForShow(forkRepo).then(function(show) {
+      return [show, forkRepo];
+    });
+  });
+}
 
 /**
 create a pull request over the github api and create the abstract object.
@@ -50,66 +98,75 @@ create a pull request over the github api and create the abstract object.
       // do stuff with pr
     });
 
-@param {Object} auth authorization details for the github account.
-@param {Object} auth.repo repository on github.
-@param {Object} auth.user user on github.
-@param {Object} auth.token github token.
+@param {String} token github oauth token for authentication.
 @param {Object} pr options for the pull request.
+@param {String} pr.user username of the repository to fork.
+@param {String} pr.repo base repository to create pull request to.
 @param {Array[Object]} pr.files files in the pull request.
 @param {String} [pr.branch=master] target branch for the pull request.
 @param {String} pr.title for pull request.
 */
-function create(auth, pr) {
+function create(token, pr) {
+  assert(pr.user, 'has base user (pr.user)');
+  assert(pr.repo, 'has base repo (pr.repo)');
   assert(pr.files, 'pr.files is given');
   assert(Array.isArray(pr.files), 'pr.files is an array');
-  assert(auth.repo, 'auth.repo is given');
-  assert(auth.user, 'auth.user is given');
-  assert(auth.token, 'auth.token is given');
 
   debug('create pr', pr);
 
-  var github = new Github({ token: auth.token });
+  // github api interface
+  var github = new Github({ token: token });
 
-  // repo where we put test subjects.
-  var junkyard = github.getRepo(auth.user, auth.repo);
+  // reference to the _base_ repository
+  var baseRepo = PromiseProxy(Promise, github.getRepo(pr.user, pr.repo));
 
-  // create the branch name
+  // create the reference object and set it's branch
   var pullObject = new PullRequest();
+  pullObject.base = baseRepo;
+  pullObject.baseRepoistory = pullObject.headRepository = pr.repo;
+  pullObject.baseUser = pr.user;
+  pullObject.baseBranch = pr.branch || 'master';
 
-  pullObject.branch = 'branch-' + uuid();
-  pullObject.repo = junkyard;
+  pullObject.headBranch = 'branch-' + uuid();
 
-  function createFiles() {
-    var write = Promise.denodeify(junkyard.write.bind(junkyard));
 
+  // create the fork
+  return forkAndWait(github, baseRepo).then(function(req) {
+    // destructuring someday!
+    var show = req[0];
+    var forkRepo = req[1];
+    pullObject.head = forkRepo;
+    pullObject.headUser = show.owner.login;
+  }).then(function() {
+    // create the branch on the forked repo
+    return pullObject.head.branch(
+      pullObject.baseBranch,
+      pullObject.headBranch
+    );
+  }).then(function() {
+    // create some files if given
     var promises = pr.files.map(function(file) {
-      return write(pullObject.branch, file.path, file.content, file.commit);
+      return pullObject.head.write(
+        pullObject.headBranch,
+        file.path,
+        file.content,
+        file.commit
+      );
     });
 
     return Promise.all(promises);
-  }
-
-  function createPullRequest() {
-    var createPr = Promise.denodeify(
-      junkyard.createPullRequest.bind(junkyard)
-    );
-
-    return createPr({
+  }).then(function() {
+    // then send the pull request with the completed data on the forked repo
+    return pullObject.base.createPullRequest({
       title: pr.title,
-      body: pr.title,
-      base: pr.branch || 'master',
-      head: pullObject.branch
+      body: pr.body || pr.title,
+      base: pullObject.baseBranch,
+      head: pullObject.headUser + ':' + pullObject.headBranch
     }).then(function(pr) {
-      pullObject.initial = pr;
+      pullObject.data = pr;
       return pullObject;
     });
-  }
-
-  var createBranch = Promise.denodeify(junkyard.branch.bind(junkyard));
-
-  return createBranch('master', pullObject.branch).
-    then(createFiles).
-    then(createPullRequest);
+  });
 }
 
 module.exports = create;
