@@ -26,7 +26,7 @@ suite('pull_request', function() {
       repo: 'testing-github',
       title: 'test pull request',
       files: [
-        { commit: 'first', path: 'a.txt', content: 'woot' }
+        { commit: 'first', path: 'newdata.txt', content: 'icreatethings' }
       ]
     };
 
@@ -35,6 +35,8 @@ suite('pull_request', function() {
         process.env.GH_TESTING_TOKEN, subjectOptions
       ).then(function(pr) {
         subject = pr;
+      }).catch(function(err) {
+        console.log('EPIC FAILS', err);
       });
     });
 
@@ -44,12 +46,12 @@ suite('pull_request', function() {
       });
     });
 
-    test('.headBranch exists', function() {
-      assert.ok(subject.headBranch, 'has .branch');
-      return subject.head.listBranches().then(function(list) {
+    test('.forkBranch exists', function() {
+      assert.ok(subject.forkBranch, 'has .branch');
+      return subject.fork.listBranches().then(function(list) {
         assert.ok(
-          list.indexOf(subject.headBranch) !== -1,
-          list.join(', ') + ' has branch ' + subject.headBranch
+          list.indexOf(subject.forkBranch) !== -1,
+          list.join(', ') + ' has branch ' + subject.forkBranch
         );
       });
     });
@@ -57,18 +59,19 @@ suite('pull_request', function() {
     test('creates files given', function() {
       var file = subjectOptions.files[0];
 
-      return subject.head.read(
-        subject.headBranch, file.path
+      return subject.fork.read(
+        subject.forkBranch, file.path
       ).then(function(content) {
         assert.equal(content, file.content);
       });
     });
 
     test('creates pull request', function() {
-      return subject.base.listPulls('open').then(function(list) {
+      return subject.fork.listPulls('open').then(function(list) {
         var hasPr = list.some(function(pr) {
           var branch = pr.head.label;
-          return branch.indexOf(subject.headBranch) !== -1;
+          console.log(branch, subject.forkBranch);
+          return branch.indexOf(subject.forkBranch) !== -1;
         });
 
         assert.ok(hasPr);
@@ -77,10 +80,10 @@ suite('pull_request', function() {
 
     test('.destroy', function() {
       return subject.destroy().then(function() {
-        return subject.head.listBranches();
+        return subject.fork.listBranches();
       }).then(function(list) {
         assert.ok(
-          list.indexOf(subject.headBranch) === -1,
+          list.indexOf(subject.forkBranch) === -1,
           'removes pr'
         );
       });

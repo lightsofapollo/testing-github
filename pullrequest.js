@@ -23,11 +23,11 @@ PullRequest.prototype = {
   @see: https://github.com/michael/github#repository-api
   @type GithubAPI.Repo
   */
-  head: null,
+  fork: null,
 
-  headRepository: null,
-  headUser: null,
-  headBranch: null,
+  forkRepository: null,
+  forkUser: null,
+  forkBranch: null,
 
   /**
   Repo representation.
@@ -44,7 +44,7 @@ PullRequest.prototype = {
   Delete branch on github.
   */
   destroy: function(callback) {
-    return this.head.deleteRef('heads/' + this.headBranch);
+    return this.fork.deleteRef('heads/' + this.forkBranch);
   }
 };
 
@@ -123,11 +123,11 @@ function create(token, pr) {
   // create the reference object and set it's branch
   var pullObject = new PullRequest();
   pullObject.base = baseRepo;
-  pullObject.baseRepoistory = pullObject.headRepository = pr.repo;
+  pullObject.baseRepoistory = pullObject.forkRepository = pr.repo;
   pullObject.baseUser = pr.user;
   pullObject.baseBranch = pr.branch || 'master';
 
-  pullObject.headBranch = 'branch-' + uuid();
+  pullObject.forkBranch = 'branch-' + uuid();
 
 
   // create the fork
@@ -135,19 +135,19 @@ function create(token, pr) {
     // destructuring someday!
     var show = req[0];
     var forkRepo = req[1];
-    pullObject.head = forkRepo;
-    pullObject.headUser = show.owner.login;
+    pullObject.fork = forkRepo;
+    pullObject.forkUser = show.owner.login;
   }).then(function() {
     // create the branch on the forked repo
-    return pullObject.head.branch(
+    return pullObject.fork.branch(
       pullObject.baseBranch,
-      pullObject.headBranch
+      pullObject.forkBranch
     );
   }).then(function() {
     // create some files if given
     var promises = pr.files.map(function(file) {
-      return pullObject.head.write(
-        pullObject.headBranch,
+      return pullObject.fork.write(
+        pullObject.forkBranch,
         file.path,
         file.content,
         file.commit
@@ -157,11 +157,11 @@ function create(token, pr) {
     return Promise.all(promises);
   }).then(function() {
     // then send the pull request with the completed data on the forked repo
-    return pullObject.base.createPullRequest({
+    return pullObject.fork.createPullRequest({
       title: pr.title,
       body: pr.body || pr.title,
       base: pullObject.baseBranch,
-      head: pullObject.headUser + ':' + pullObject.headBranch
+      head: pullObject.forkBranch
     }).then(function(pr) {
       pullObject.data = pr;
       return pullObject;

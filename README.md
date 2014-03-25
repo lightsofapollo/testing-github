@@ -16,8 +16,8 @@ Calling the module will do the following:
   - create a fork for the token user if not already available
   - create a unique branch in the fork
   - add given files to the branch in the fork
-  - create a pull request from the fork to the master (optionally
-    specifying the branch)
+  - create a pull request from the created branch to the specified
+    branch _in the fork_ (not the base repository)
 
 
 ```js
@@ -41,6 +41,20 @@ testPr(
 });
 
 ```
+
+## NOTES:
+
+In the original design pull requests where made directly to the base
+repository this works fairly well but results in massive amounts of
+email spam and may require extra permissions... In the current design we
+fork the base repository and then issue pull requests from the fork to
+the fork.
+
+## TODO:
+
+ - redesign api to use a more fluent interface instead of one big
+   options blob (the design is mostly the same from where this code was
+   extracted from right now)
 
 ## LICENSE
 
