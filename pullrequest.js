@@ -5,6 +5,7 @@ var PromiseProxy = require('proxied-promise-object');
 var uuid = require('uuid');
 var debug = require('debug')('shepherd-event-sever:test:pull_request');
 var assert = require('assert');
+var fork = require('./fork');
 
 /**
 Github object representation.
@@ -26,7 +27,6 @@ PullRequest.prototype = {
   fork: null,
 
   forkRepository: null,
-  forkUser: null,
   forkBranch: null,
 
   /**
@@ -37,7 +37,6 @@ PullRequest.prototype = {
   base: null,
 
   baseRepoistory: null,
-  baseUser: null,
   baseBranch: null,
 
   /**
@@ -47,44 +46,6 @@ PullRequest.prototype = {
     return this.fork.deleteRef('heads/' + this.forkBranch);
   }
 };
-
-/**
-Issue the fork and wait for the contents of the repo to be open
-@param {Object} options for the fork.
-@param {Object} repo repository object from the github api.
-@return {Promise} promise for the forking to be completed.
-*/
-
-function forkAndWait(gh, repo) {
-
-  function waitForShow(targetRepo) {
-    var timeout = new Date();
-    timeout.setSeconds(timeout.getSeconds() + 180);
-    timeout = timeout.valueOf();
-
-    return new Promise(function(accept, reject) {
-      function shown() {
-        if (Date.now() > timeout) {
-          return reject(
-            new Error('timeout while waiting for repoistory to be available')
-          );
-        }
-
-        targetRepo.show().then(accept, function() {
-          setTimeout(shown, 100);
-        });
-      }
-      shown();
-    });
-  }
-
-  return repo.fork().then(function(forked) {
-    var forkRepo = PromiseProxy(Promise, gh.getRepo(forked.owner.login, forked.name));
-    return waitForShow(forkRepo).then(function(show) {
-      return [show, forkRepo];
-    });
-  });
-}
 
 /**
 create a pull request over the github api and create the abstract object.
@@ -124,19 +85,13 @@ function create(token, pr) {
   var pullObject = new PullRequest();
   pullObject.base = baseRepo;
   pullObject.baseRepoistory = pullObject.forkRepository = pr.repo;
-  pullObject.baseUser = pr.user;
   pullObject.baseBranch = pr.branch || 'master';
 
   pullObject.forkBranch = 'branch-' + uuid();
 
-
-  // create the fork
-  return forkAndWait(github, baseRepo).then(function(req) {
+  return fork(github, pr.user, pr.repo).then(function(forkRepo) {
     // destructuring someday!
-    var show = req[0];
-    var forkRepo = req[1];
     pullObject.fork = forkRepo;
-    pullObject.forkUser = show.owner.login;
   }).then(function() {
     // create the branch on the forked repo
     return pullObject.fork.branch(

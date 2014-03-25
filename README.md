@@ -6,6 +6,21 @@ Bunch of very opinionated and specific to testing github utilities used in autom
 See the [tests/pullrequest_test.js] for an indepth guide how to use
 this.
 
+## Usage: (fork)
+
+Forking github is usually an asynchronous process this method will fork
+and then wait for the repository to be available.
+
+```js
+var fork = require('testing-github/fork');
+
+fork(githubApi, 'user', 'repo').then(function(forkRepoApi) {
+  // example: get details about the forked repository
+  return forkRepoApi.show();
+});
+
+```
+
 ## Usage: (pullrequest)
 
 The pull request module heavily abstracts the operations required to
