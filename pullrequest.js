@@ -26,6 +26,8 @@ PullRequest.prototype = {
   */
   fork: null,
 
+  // Branch where we originally created the fork from...
+  startingBranch: null,
   forkRepository: null,
   forkBranch: null,
 
@@ -85,7 +87,8 @@ function create(token, pr) {
   var pullObject = new PullRequest();
   pullObject.base = baseRepo;
   pullObject.baseRepoistory = pullObject.forkRepository = pr.repo;
-  pullObject.baseBranch = pr.branch || 'master';
+  pullObject.startingBranch = pr.branch || 'master';
+  pullObject.baseBranch = pr.baseBranch || pullObject.startingBranch;
 
   pullObject.forkBranch = 'branch-' + uuid();
 
@@ -93,9 +96,10 @@ function create(token, pr) {
     // destructuring someday!
     pullObject.fork = forkRepo;
   }).then(function() {
+    debug('forking branch ', pullObject.forkBranch, pullObject.baseBranch);
     // create the branch on the forked repo
     return pullObject.fork.branch(
-      pullObject.baseBranch,
+      pullObject.startingBranch,
       pullObject.forkBranch
     );
   }).then(function() {
