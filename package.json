@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "debug": "^0.8.1",
-    "github-api": "git://github.com/michael/github.git#7b45b4d6936c3dfb271bb0ea09924554c74e9de8",
+    "github-api": "^0.10.4",
     "promise": "~4.0.0",
     "proxied-promise-object": "~0.1.0",
     "uuid": "~1.4.1"
